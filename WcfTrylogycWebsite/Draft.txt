@@ -1,0 +1,54 @@
+﻿        public void CreateFromDTO<T>(T source)
+        {
+            ConvertFromTo<T, WcfUser>(source);
+            //Id = user.Id;
+            //Email = user.Email;
+            //EmailInvoice = user.EmailInvoice;
+
+        }
+        #endregion
+
+        public static T ConvertFromTo<U, T>(U from)
+        {
+            T destination = (T)Activator.CreateInstance(typeof(T));
+            var fromProperties = from.GetType().GetProperties();
+            var destProperties = destination.GetType().GetProperties();
+
+            foreach (var fromProperty in fromProperties)
+            {
+                foreach (var destProperty in destProperties)
+                {
+                    if (destProperty.Name.Equals(fromProperty.Name, StringComparison.InvariantCultureIgnoreCase) &&
+                            destProperty.PropertyType.IsAssignableFrom(fromProperty.PropertyType))
+                    {
+                        if (fromProperty.PropertyType.GetInterfaces().Contains(typeof(IEnumerable)) &&
+                                destProperty.PropertyType.GetInterfaces().Contains(typeof(IEnumerable)) &&
+                                    destProperty.PropertyType.IsAssignableFrom(fromProperty.GetType()))
+                        {
+                            foreach (var item in (IEnumerable)fromProperty.GetValue(from, null))
+                            {
+
+                                //Llamar recursivamente a si misma desde el primer for-each.
+                            }
+                            break;
+                        }
+                        else
+                        {
+                            if (fromProperty.GetValue(from) != null)
+                            {
+                                destProperty.SetValue(destination, fromProperty.GetValue(from), new object[] { });
+                            }
+                            else
+                            {
+                                destProperty.SetValue(destination, null, new object[] { });
+                            }
+                            break;
+                        }
+
+                       
+                    }
+                }
+            }
+            return destination;
+
+        }
