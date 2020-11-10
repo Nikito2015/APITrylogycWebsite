@@ -386,6 +386,65 @@ namespace DataAccess.Repositories
             return response;
         }
 
+        /// <summary>
+        /// Retrieves the user by email and associateId.
+        /// </summary>
+        /// <param name="userId">The user identifier.</param>
+        /// <param name="newPassword">The new password.</param>
+        /// <param name="sendInvoiceEmail">if set to <c>true</c> [send invoice email].</param>
+        /// <returns></returns>
+        public IBaseDALResponse GetUserByEmailAndAssociateId(string email, int associateId)
+        {
+            _log.Info("GetUserByEmailAndAssociateId() Comienzo...");
+            VerifyConnectionAndCommand();
+            var response = new BaseDALResponse();
+            SqlDataAdapter dA = new SqlDataAdapter();
+
+            SqlParameter Prmparametro1 = new SqlParameter();
+            SqlParameter Prmparametro2 = new SqlParameter();
+
+            Prmparametro1.ParameterName = "XmlSocio";
+            Prmparametro1.SqlDbType = System.Data.SqlDbType.Int;
+            Prmparametro1.Value = associateId;
+
+            Prmparametro2.ParameterName = "userEmail";
+            Prmparametro2.SqlDbType = System.Data.SqlDbType.VarChar;
+            Prmparametro2.Value = email;
+
+            Command.CommandType = CommandType.StoredProcedure;
+            Command.CommandText = "SEL_USUARIO_REESTABLECER";
+            Command.Parameters.Add(Prmparametro1);
+            Command.Parameters.Add(Prmparametro2);
+  
+
+            try
+            {
+                Connection.Open();
+                dA.SelectCommand = Command;
+                dA.Fill(response.Results);
+                response.Succeeded = true;
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Ocurrieron Errores. {ex.Message}");
+                response.FillErrorResponse(ex.HResult, ex.Message);
+            }
+
+            finally
+            {
+                _log.Info("Disposing Data Adapter.");
+                dA?.Dispose();
+                Command?.Dispose();
+                Command = null;
+                _log.Info("Closing connection.");
+                Connection?.Close();
+                _log.Info($"UpdateUserData() Fin.");
+            }
+
+            return response;
+        }
+
+        
         #endregion
     }
 }

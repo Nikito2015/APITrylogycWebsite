@@ -74,6 +74,13 @@ namespace BLLTrylogycWebsite.Models.Interfaces
         /// <returns></returns>
         IBLLResponseBase<bool> UpdateUserData(string userName, string oldPassword, string newPassword, bool sendInvoiceMail);
 
+        /// <summary>
+        /// Retrieves the password.
+        /// </summary>
+        /// <param name="email">The email.</param>
+        /// <param name="cgp">The CGP.</param>
+        /// <returns></returns>
+        IBLLResponseBase<bool> RetrievePassword(string email, string cgp);
         #endregion
     }
 }

@@ -61,6 +61,14 @@ namespace DALTrylogycWebsite.Repositories.Interfaces
         /// <param name="sendInvoiceEmail">if set to <c>true</c> [send invoice email].</param>
         /// <returns></returns>
         IBaseDALResponse UpdateUserData(int userId, string newPassword, bool sendInvoiceEmail);
+
+        /// <summary>
+        /// Gets the user by email and associate identifier.
+        /// </summary>
+        /// <param name="email">The email.</param>
+        /// <param name="associateId">The associate identifier.</param>
+        /// <returns></returns>
+        IBaseDALResponse GetUserByEmailAndAssociateId(string email, int associateId);
         #endregion
     }
 }

@@ -9,6 +9,7 @@ using DALTrylogycWebsite.DALResponses.Interfaces;
 using DALTrylogycWebsite.Repositories.Interfaces;
 using DataAccess.Repositories;
 using log4net;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -26,6 +27,7 @@ namespace BLLTrylogycWebsite.Models
 
         #region Private Members
         private IUserRepository _userRepository;
+
         #endregion
         #region Constructor
 
@@ -33,7 +35,7 @@ namespace BLLTrylogycWebsite.Models
         /// Initializes a new instance of the <see cref="BLLUser"/> class.
         /// </summary>
         /// <param name="log"></param>
-        public BLLUser(ILog log, string connString) : base(log, connString)
+        public BLLUser(ILog log, string connString, IConfiguration configuration) : base(log, connString, configuration)
         {
             _userRepository = new UserRepository(log, connString);
         }
@@ -66,7 +68,7 @@ namespace BLLTrylogycWebsite.Models
                         if (userRow["UserPass"]?.Equals(password) ?? false)
                         {
                             bllUserResponse.DTOResult = DTOUser.CreateFromDataRow(userRow);
-                            
+
                             _log.Info("Conversión a DTO exitosa.");
                             //Recuperar Conexiones
                             var bllConnectionsResponse = GetConnectionIdsFromUserId(bllUserResponse.DTOResult.Id);
@@ -199,13 +201,13 @@ namespace BLLTrylogycWebsite.Models
                 if (retrieveFromFtp == true)
                 {
                     _log.Info($"Recuperando archivo pdf desde FTP.");
-                    var ftpAddress = System.Configuration.ConfigurationManager.AppSettings["ftpAddress"];
+                    string ftpAddress = _configuration.GetSection("FtpAddress").Value;
                     _log.Info($"Host FTP: {ftpAddress}.");
-                    var ftpUser = System.Configuration.ConfigurationManager.AppSettings["ftpUser"];
+                    string ftpUser = _configuration.GetSection("ftpUser").Value;
                     _log.Info($"Usuario FTP: {ftpUser}.");
-                    var ftpPassword = System.Configuration.ConfigurationManager.AppSettings["ftpPassWord"];
+                    string ftpPassword = _configuration.GetSection("ftpPassWord").Value; 
                     _log.Info($"Contraseña FTP: {ftpPassword}.");
-                    var fullFtpAddress = ftpAddress + CreateFullInvoiceNumberFromAssociateAndConnection(associateId, connectionId, invoiceNumber) + ".pdf";
+                    string fullFtpAddress = ftpAddress + CreateFullInvoiceNumberFromAssociateAndConnection(associateId, connectionId, invoiceNumber) + ".pdf";
                     _log.Info($"Dirección completa FTP: {fullFtpAddress}.");
 
                     FtpWebRequest request =
@@ -448,7 +450,7 @@ namespace BLLTrylogycWebsite.Models
                     bllConnectionsResponse.Status = Enums.Status.Fail;
                     bllConnectionsResponse.Message = "Error al recuperar las conexiones del usuario.";
                 }
-               
+
             }
 
             catch (Exception ex)
@@ -561,7 +563,7 @@ namespace BLLTrylogycWebsite.Models
                                 bllUpdateUserResponse.Status = Enums.Status.Fail;
                                 bllUpdateUserResponse.Message = "Ocurrieron Errores al actualizar los datos de usuario.";
                             }
-                           
+
                         }
                         else
                         {
@@ -591,6 +593,59 @@ namespace BLLTrylogycWebsite.Models
                 _log.Error($"Ocurrieron errores al intentar actualizar los datos del usuario {userName}. {ex.Message}");
                 bllUpdateUserResponse.Status = Enums.Status.Fail;
                 bllUpdateUserResponse.Message = $"Ocurrieron errores al intentar actualizar los datos del usuario.";
+            }
+            return bllUpdateUserResponse;
+        }
+
+        /// <summary>
+        /// Updates the user data.
+        /// </summary>
+        /// <param name="userName">Name of the user.</param>
+        /// <param name="oldPassword">The old password.</param>
+        /// <param name="newPassword">The new password.</param>
+        /// <returns></returns>
+        public IBLLResponseBase<bool> RetrievePassword(string email, string cgp)
+        {
+            _log.Info("RetrievePassword() Comienzo...");
+            var bllUpdateUserResponse = new BLLResponseBase<bool>();
+            try
+            {
+                int associateId = Convert.ToInt32(cgp.Substring(0, 6));
+                var user = _userRepository.GetUserByEmailAndAssociateId(email, associateId);
+                if (user.Succeeded)
+                {
+                    if (user.Results.Tables?[0]?.Rows?.Count > 0)
+                    {
+                        _log.Info("Usuario recuperado.");
+                        _log.Info("Convirtiendo dataset a DTO.");
+                        var userRow = user.Results.Tables[0].Rows[0];
+
+                        //El usuario existía --> Enviamos el password por mail.
+                        SendRegistrationEmail(userRow["userEmail"].ToString(), userRow["userPass"].ToString());
+                        bllUpdateUserResponse.Status = Enums.Status.Success;
+                        bllUpdateUserResponse.Message = "Enviamos un email a su casilla con los datos de acceso.";
+                    }
+
+                    else
+                    {
+                        _log.Info("Usuario no encontrado.");
+                        bllUpdateUserResponse.Status = Enums.Status.Fail;
+                        bllUpdateUserResponse.Message = "Usuario no encontrado.";
+                    }
+                }
+                else
+                {
+                    var message = user.Results?.Tables?[0].Rows?[0]?[1]?.ToString();
+                    _log.Info($"No se pudo recuperar el usuario {email}. Motivo: {message} ");
+                    bllUpdateUserResponse.Status = Enums.Status.Fail;
+                    bllUpdateUserResponse.Message = "Ocurrieron Errores al recuperar el usuario.";
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Ocurrieron errores al intentar reestablecer la contraseña del usuario {email}. {ex.Message}");
+                bllUpdateUserResponse.Status = Enums.Status.Fail;
+                bllUpdateUserResponse.Message = $"Ocurrieron errores al intentar reestablecer su contraseña.";
             }
             return bllUpdateUserResponse;
         }
@@ -867,19 +922,19 @@ namespace BLLTrylogycWebsite.Models
             {
                 using (var message = new MailMessage())
                 {
-                    message.From = new MailAddress(System.Configuration.ConfigurationManager.AppSettings["email"].ToString(), System.Configuration.ConfigurationManager.AppSettings["site"].ToString());
+                    message.From = new MailAddress(_configuration.GetSection("email").Value, _configuration.GetSection("site").Value);
                     message.To.Add(new MailAddress(email));
-                    message.Subject = "Sus datos de Acceso al sitio " + System.Configuration.ConfigurationManager.AppSettings["site"].ToString();
+                    message.Subject = "Sus datos de Acceso al sitio " + _configuration.GetSection("site").Value;
                     message.IsBodyHtml = true;
                     message.Body = "<html><body><span style='font-family:Georgia;font-size:14px;font-style:normal;font-weight:normal;text-decoration:none;text-transform:none;color:000000;background-color:ffffff;'><p>" + "Nueva Consulta desde Mi sitio Web" + "<br/>Su contraseña para acceder al sitio: " + password + "<br/>" + "</p></span></body></html>";
 
                     using (var client = new SmtpClient())
                     {
-                        client.Host = System.Configuration.ConfigurationManager.AppSettings["host"].ToString();
-                        client.Port = Convert.ToInt32(System.Configuration.ConfigurationManager.AppSettings["port"].ToString());
-                        client.UseDefaultCredentials = Convert.ToBoolean(System.Configuration.ConfigurationManager.AppSettings["usedefaultcredentials"].ToString());
-                        client.Credentials = new System.Net.NetworkCredential(System.Configuration.ConfigurationManager.AppSettings["email"].ToString(), System.Configuration.ConfigurationManager.AppSettings["password"].ToString());
-                        client.EnableSsl = Convert.ToBoolean(System.Configuration.ConfigurationManager.AppSettings["enablessl"].ToString());
+                        client.Host = _configuration.GetSection("host").Value.ToString();
+                        client.Port = Convert.ToInt32(_configuration.GetSection("port").Value);
+                        client.UseDefaultCredentials = Convert.ToBoolean((_configuration.GetSection("usedefaultcredentials").Value));
+                        client.Credentials = new System.Net.NetworkCredential(_configuration.GetSection("email").Value, _configuration.GetSection("password").Value);
+                        client.EnableSsl = Convert.ToBoolean(_configuration.GetSection("enablessl").Value);
                         client.Send(message);
                     }
                 }

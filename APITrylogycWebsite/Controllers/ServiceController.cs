@@ -25,9 +25,11 @@ namespace APITrylogycWebsite.Controllers
 
         private static readonly log4net.ILog _log = log4net.LogManager.GetLogger(typeof(ServiceController));
         private string _connString;
+        private IConfiguration _configuration;
         public ServiceController(IConfiguration configuration)
         {
             _connString = ConfigurationExtensions.GetConnectionString(configuration, "appConn");
+            _configuration = configuration;
         }
 
         public IConfiguration Configuration { get; }
@@ -44,7 +46,7 @@ namespace APITrylogycWebsite.Controllers
 
             try
             {
-                IBLLUser bllUser = new BLLUser(_log, _connString);
+                IBLLUser bllUser = new BLLUser(_log, _connString,_configuration);
                 var bllResponse = bllUser.Login(request.Email, request.Password, true);
                 if (bllResponse.Status.Equals(Status.Success))
                 {
@@ -86,7 +88,7 @@ namespace APITrylogycWebsite.Controllers
             try
             {
                 _log.Info("Inicializando BLL User.");
-                IBLLUser bllUser = new BLLUser(_log, _connString);
+                IBLLUser bllUser = new BLLUser(_log, _connString,_configuration);
                 _log.Info("Recuperando Pdf como array de bytes.");
                 var bllResponse = bllUser.GetInvoicePdf(request.AssociateId, request.ConnectionId, request.InvoiceNumber, request.RetrieveFromFTP);
                 _log.Info($"Respuesta de la capa de negocios: {bllResponse?.Status.ToString()}. Mensaje {bllResponse?.Message}");
@@ -131,7 +133,7 @@ namespace APITrylogycWebsite.Controllers
             try
             {
                 _log.Info("Inicializando BLL User.");
-                IBLLUser bllUser = new BLLUser(_log, _connString);
+                IBLLUser bllUser = new BLLUser(_log, _connString,_configuration);
                 _log.Info($"Registrando usuario {request.Email}.");
                 var bllResponse = bllUser.Register(request.Email, request.EmailConfirm, request.Code, request.CGP, request.EmailInvoices);
                 _log.Info($"Respuesta de la capa de negocios: {bllResponse?.Status.ToString()}. Mensaje {bllResponse?.Message}");
@@ -173,7 +175,7 @@ namespace APITrylogycWebsite.Controllers
             try
             {
                 _log.Info("Inicializando BLL User.");
-                IBLLUser bllUser = new BLLUser(_log, _connString);
+                IBLLUser bllUser = new BLLUser(_log, _connString,_configuration);
                 _log.Info($"Registrando Relación.");
                 var bllResponse = bllUser.AddRelation(request.UserId, request.AssociateCode, request.CGP);
                 _log.Info($"Respuesta de la capa de negocios: {bllResponse?.Status.ToString()}. Mensaje {bllResponse?.Message}");
@@ -214,7 +216,7 @@ namespace APITrylogycWebsite.Controllers
 
             try
             {
-                IBLLUser bllUser = new BLLUser(_log, _connString);
+                IBLLUser bllUser = new BLLUser(_log, _connString,_configuration);
                 var bllResponse = bllUser.GetUserAssociates(request.UserId);
                 if (bllResponse.Status.Equals(Status.Success))
                 {
@@ -253,7 +255,7 @@ namespace APITrylogycWebsite.Controllers
 
             try
             {
-                IBLLUser bllUser = new BLLUser(_log, _connString);
+                IBLLUser bllUser = new BLLUser(_log, _connString,_configuration);
                 var bllResponse = bllUser.GetUserBalances(request.UserId);
                 if (bllResponse.Status.Equals(Status.Success))
                 {
@@ -292,7 +294,7 @@ namespace APITrylogycWebsite.Controllers
 
             try
             {
-                IBLLUser bllUser = new BLLUser(_log, _connString);
+                IBLLUser bllUser = new BLLUser(_log, _connString,_configuration);
                 var bllResponse = bllUser.UpdateUserData(request.UserName,request.OldPassword,request.NewPassword, request.SendInvoiceEmail);
                 if (bllResponse.Status.Equals(Status.Success))
                 {     
@@ -314,6 +316,44 @@ namespace APITrylogycWebsite.Controllers
             finally
             {
                 _log.Info("UpdateUserData() Fin...");
+            }
+            return response;
+        }
+
+        [HttpPost]
+        [Route("RetrievePassword")]
+        public RetrievePasswordResponse UpdateUserData(RetrievePasswordRequest request)
+        {
+            _log.Info("RetrievePassword() Comienzo...");
+            var response = new RetrievePasswordResponse();
+
+            if (!request.IsValid())
+                return (RetrievePasswordResponse)response.SetBadRequestResponse("Los datos ingresados son erróneos. Debe ingresar su CGP y su Email correctamente.");
+
+            try
+            {
+                IBLLUser bllUser = new BLLUser(_log, _connString,_configuration);
+                var bllResponse = bllUser.RetrievePassword(request.Email, request.CGP);
+                if (bllResponse.Status.Equals(Status.Success))
+                {
+                    response.SetSuccessResponse(bllResponse.Message);
+                }
+                else
+                {
+                    response.SetBadRequestResponse(bllResponse.Message);
+                }
+
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Ocurrieron errores: {ex}");
+                response.SetErrorResponse(ex.Message);
+                Response.StatusCode = StatusCodes.Status400BadRequest;
+            }
+
+            finally
+            {
+                _log.Info("RetrievePassword() Fin...");
             }
             return response;
         }
