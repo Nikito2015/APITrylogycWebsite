@@ -320,6 +320,11 @@ namespace APITrylogycWebsite.Controllers
             return response;
         }
 
+        /// <summary>
+        /// Updates the user data.
+        /// </summary>
+        /// <param name="request">The request.</param>
+        /// <returns></returns>
         [HttpPost]
         [Route("RetrievePassword")]
         public RetrievePasswordResponse UpdateUserData(RetrievePasswordRequest request)
